@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>W109 Studio — Walkthrough</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #0a0a0d;
+      color: #e6e6e6;
+    }
+    #canvas-host { position: absolute; inset: 0; }
+    #canvas-host canvas { display: block; }
+
+    /* HUD */
+    #topbar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+      padding: 0.6rem 1rem;
+      background: linear-gradient(180deg, rgba(15,15,20,0.85) 0%, rgba(15,15,20,0.0) 100%);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem; flex-wrap: wrap; pointer-events: none;
+    }
+    #topbar > * { pointer-events: auto; }
+    h1 { font-size: 1.05rem; font-weight: 600; }
+    .scenario-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    button.scn {
+      background: rgba(42,42,48,0.85);
+      border: 1px solid rgba(80,80,90,0.6);
+      color: #ccc;
+      padding: 0.4rem 0.7rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+    }
+    button.scn:hover { background: rgba(60,60,70,0.9); }
+    button.scn.active {
+      background: #1f6feb; border-color: #1f6feb; color: #fff;
+    }
+    .links { font-size: 0.8rem; color: #888; }
+    .links a { color: #4a9eff; text-decoration: none; margin-left: 0.5rem; }
+    .links a:hover { text-decoration: underline; }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute; top: 50%; left: 50%;
+      width: 8px; height: 8px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.45), 0 0 0 2px rgba(0,0,0,0.45);
+      opacity: 0; transition: opacity 0.15s;
+    }
+    body.locked #crosshair { opacity: 1; }
+
+    /* Bottom hint */
+    #hint {
+      position: absolute; bottom: 0.75rem; left: 50%; transform: translateX(-50%);
+      font-size: 0.78rem; color: #aaa;
+      background: rgba(15,15,20,0.7);
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      backdrop-filter: blur(6px);
+      pointer-events: none;
+      z-index: 5;
+    }
+    body.locked #hint { opacity: 0.4; }
+
+    /* Start overlay */
+    #start-overlay {
+      position: absolute; inset: 0; z-index: 20;
+      background: rgba(10,10,13,0.92);
+      backdrop-filter: blur(12px);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.25s;
+    }
+    body.locked #start-overlay { opacity: 0; pointer-events: none; }
+    #start-overlay h2 {
+      font-size: 1.6rem; margin-bottom: 0.5rem;
+    }
+    #start-overlay p { color: #999; max-width: 460px; text-align: center; line-height: 1.5; }
+    #start-overlay .keys {
+      display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; justify-content: center;
+    }
+    .kbd {
+      background: #2a2a30; border: 1px solid #44444c; color: #e6e6e6;
+      padding: 0.25rem 0.6rem; border-radius: 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85rem;
+    }
+    #start-overlay .cta {
+      margin-top: 1.5rem;
+      background: #1f6feb; color: #fff;
+      padding: 0.7rem 1.5rem; border-radius: 8px;
+      font-weight: 500; font-size: 0.95rem;
+    }
+
+    /* Loading bar */
+    #loading {
+      position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);
+      width: 240px; max-width: 60vw; z-index: 21;
+    }
+    #loading .bar {
+      height: 6px; background: #2a2a30; border-radius: 3px; overflow: hidden;
+    }
+    #loading .fill { height: 100%; width: 0%; background: #4a9eff; transition: width 0.15s ease; }
+    #loading .text { font-size: 0.8rem; color: #888; text-align: center; margin-top: 0.4rem; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="canvas-host"></div>
+  <div id="crosshair"></div>
+
+  <div id="topbar">
+    <h1>W109 Walkthrough</h1>
+    <div class="scenario-row">
+      <button class="scn active" data-scn="all_on">All on (1)</button>
+      <button class="scn" data-scn="leds_only">LEDs only (2)</button>
+      <button class="scn" data-scn="softboxes_only">Softboxes only (3)</button>
+      <button class="scn" data-scn="strip_softboxes">Strip + softboxes (4)</button>
+    </div>
+    <span class="links">
+      <a href="index.html">Renders</a>
+      <a href="3d.html">Orbit</a>
+    </span>
+  </div>
+
+  <div id="hint">WASD move · mouse look · 1-4 scenarios · Esc release</div>
+
+  <div id="loading">
+    <div class="bar"><div class="fill" id="load-fill"></div></div>
+    <div class="text" id="load-text">Loading scene…</div>
+  </div>
+
+  <div id="start-overlay">
+    <h2>W109 Studio Walkthrough</h2>
+    <p>First-person walkthrough of the W109 recording studio. Pick a lighting scenario, then click to start moving.</p>
+    <div class="keys">
+      <span class="kbd">W A S D</span><span style="color:#666">move</span>
+      <span class="kbd">Mouse</span><span style="color:#666">look</span>
+      <span class="kbd">1 2 3 4</span><span style="color:#666">scenarios</span>
+      <span class="kbd">Esc</span><span style="color:#666">release</span>
+    </div>
+    <div class="cta">Click anywhere to start</div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+    // ---------- Renderer ----------
+    const host = document.getElementById('canvas-host');
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = false;   // skip dynamic shadows for performance
+    host.appendChild(renderer.domElement);
+
+    // ---------- Scene & camera ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0d);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 100);
+    // Start in the middle of the room — using default camera direction (looking -Z = north)
+    camera.position.set(0, 1.6, 0);
+    camera.rotation.order = 'YXZ';
+    // (no rotation set — looks down -Z by default, toward the giant test cube)
+
+    // ---------- Fill lighting OFF (hemisphere, ambient, sun all 0) ----------
+    const hemi = new THREE.HemisphereLight(0xfff7e6, 0x202028, 0);
+    scene.add(hemi);
+    const ambient = new THREE.AmbientLight(0xffffff, 0);
+    scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xffffff, 0);
+    sun.position.set(2, 4, 2);
+    scene.add(sun);
+
+    renderer.toneMappingExposure = 1.4;
+
+    // ---------- Controls ----------
+    const controls = new PointerLockControls(camera, document.body);
+    document.getElementById('start-overlay').addEventListener('click', () => controls.lock());
+    controls.addEventListener('lock',   () => document.body.classList.add('locked'));
+    controls.addEventListener('unlock', () => document.body.classList.remove('locked'));
+
+    const keys = {};
+    document.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (controls.isLocked) {
+        if (e.code === 'Digit1') applyScenario('all_on');
+        else if (e.code === 'Digit2') applyScenario('leds_only');
+        else if (e.code === 'Digit3') applyScenario('softboxes_only');
+        else if (e.code === 'Digit4') applyScenario('strip_softboxes');
+      }
+    });
+    document.addEventListener('keyup', e => keys[e.code] = false);
+
+    // ---------- Load model ----------
+    // Use draco decoder version matching three.js, served from jsdelivr (good CORS)
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
+
+    const groups = {
+      ceilingLights: [], stripLight: [], softboxLights: [], otherLights: [],
+      ledPanels: [], stripPanel: [], softboxDiffuserMats: new Set(),
+    };
+
+    loader.load(
+      'W109.glb',
+      (gltf) => {
+        console.log('GLTF loaded:', gltf);
+        console.log('Scene children count:', gltf.scene.children.length);
+        scene.add(gltf.scene);
+        console.log('Added to scene. Three.js scene now has', scene.children.length, 'top-level children');
+        // Make the scene face the user nicely on first lock
+        gltf.scene.traverse(node => {
+          // Lights
+          if (node.isLight) {
+            const n = node.name || '';
+            if (n.includes('LEDPanel_r2r3_c2E_Light')) {
+              groups.stripLight.push(node);
+            } else if (n.includes('LEDPanel') && n.endsWith('_Light')) {
+              groups.ceilingLights.push(node);
+            } else if (n.includes('Softbox_Light')) {
+              groups.softboxLights.push(node);
+            } else {
+              groups.otherLights.push(node);
+            }
+            // Bump from the very-dim Blender values to something visible in three.js
+            // intensity is in candela; values below scaled for the room
+          }
+          // Meshes
+          if (node.isMesh) {
+            const n = node.name || '';
+            // Make material(s) unique so we can tweak emission per-mesh group
+            const mats = Array.isArray(node.material) ? node.material : [node.material];
+            const newMats = mats.map(m => m.clone());
+            node.material = newMats.length === 1 ? newMats[0] : newMats;
+
+            if (n.startsWith('W109_LEDPanel_')) {
+              if (n.includes('r2r3_c2E')) groups.stripPanel.push(node);
+              else groups.ledPanels.push(node);
+            }
+            // Track softbox diffuser materials by name
+            (Array.isArray(node.material) ? node.material : [node.material]).forEach(m => {
+              if (m && m.name && m.name.startsWith('W109_Softbox_Diffuser_Mat')) {
+                groups.softboxDiffuserMats.add(m);
+              }
+            });
+          }
+        });
+        console.log('Loaded scene; groups:', groups);
+        document.getElementById('loading').style.display = 'none';
+        applyScenario('all_on');
+      },
+      (xhr) => {
+        if (xhr.lengthComputable) {
+          const pct = (xhr.loaded / xhr.total) * 100;
+          document.getElementById('load-fill').style.width = pct + '%';
+          document.getElementById('load-text').textContent =
+              `Loading scene… ${(xhr.loaded/1024/1024).toFixed(1)} / ${(xhr.total/1024/1024).toFixed(1)} MB`;
+        }
+      },
+      (err) => {
+        console.error('GLTF load error:', err);
+        document.getElementById('load-text').innerHTML =
+          'Failed to load <code>W109.glb</code>.<br>Open the browser console for details.';
+      }
+    );
+
+    // Helpful console diagnostic
+    setTimeout(() => {
+      console.log('Camera position:', camera.position);
+      console.log('Renderer dom element size:',
+                  renderer.domElement.width, renderer.domElement.height);
+      console.log('Lights found:', {
+        ceiling: groups.ceilingLights.length,
+        strip:   groups.stripLight.length,
+        softbox: groups.softboxLights.length,
+        other:   groups.otherLights.length,
+      });
+    }, 3000);
+
+    // ---------- Scenario application ----------
+    const SETTINGS = {
+      // LEDs (ceiling + strip) and softbox lights reduced another 30% (70% retained)
+      ceilingLightIntensity:   7.84,
+      stripLightIntensity:     9.8,
+      softboxLightIntensity:   3.5,
+      panelEmission:           1.26,
+      stripEmission:           1.26,
+      diffuserEmission:        0.0168,
+      hemiOn:  0,
+      hemiOff: 0,
+    };
+
+    const SCN = {
+      all_on:          { ceiling: true,  strip: true,  softbox: true  },
+      leds_only:       { ceiling: true,  strip: true,  softbox: false },
+      softboxes_only:  { ceiling: false, strip: false, softbox: true  },
+      strip_softboxes: { ceiling: false, strip: true,  softbox: true  },
+    };
+
+    function setMatEmission(mesh, value) {
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      mats.forEach(m => {
+        if (!m) return;
+        if (typeof m.emissiveIntensity === 'number') {
+          m.emissiveIntensity = value;
+        }
+      });
+    }
+
+    function applyScenario(key) {
+      const sc = SCN[key]; if (!sc) return;
+      const S = SETTINGS;
+      groups.ceilingLights.forEach(l => l.intensity = sc.ceiling ? S.ceilingLightIntensity : 0);
+      groups.stripLight.forEach   (l => l.intensity = sc.strip   ? S.stripLightIntensity   : 0);
+      groups.softboxLights.forEach(l => l.intensity = sc.softbox ? S.softboxLightIntensity : 0);
+      groups.otherLights.forEach  (l => l.intensity = 0); // disable default fallback Area light
+
+      groups.ledPanels.forEach(m => setMatEmission(m, sc.ceiling ? S.panelEmission : 0));
+      groups.stripPanel.forEach(m => setMatEmission(m, sc.strip   ? S.stripEmission : 0));
+      groups.softboxDiffuserMats.forEach(m => {
+        m.emissiveIntensity = sc.softbox ? S.diffuserEmission : 0;
+      });
+
+      // Ambient response — when fewer lights are on, dim the fill
+      const numOn = (sc.ceiling?1:0) + (sc.softbox?1:0) + (sc.strip?0.5:0);
+      hemi.intensity = THREE.MathUtils.lerp(S.hemiOff, S.hemiOn, Math.min(1, numOn / 2));
+
+      document.querySelectorAll('button.scn').forEach(b => {
+        b.classList.toggle('active', b.dataset.scn === key);
+      });
+    }
+
+    document.querySelectorAll('button.scn').forEach(b => {
+      b.addEventListener('click', () => applyScenario(b.dataset.scn));
+    });
+
+    // ---------- Movement loop ----------
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const ROOM = { xMin: -2.55, xMax: 2.55, zMin: -1.40, zMax: 1.40, eyeY: 1.6 };
+    const SPEED = 3.2;        // m/s
+    const FRICTION = 10.0;
+    let prevTime = performance.now();
+
+    function step() {
+      requestAnimationFrame(step);
+      const time = performance.now();
+      const delta = Math.min((time - prevTime) / 1000, 0.1);
+      prevTime = time;
+
+      if (controls.isLocked) {
+        velocity.x -= velocity.x * FRICTION * delta;
+        velocity.z -= velocity.z * FRICTION * delta;
+
+        const fwd  = (keys['KeyW'] || keys['ArrowUp'])    ? 1 : 0;
+        const back = (keys['KeyS'] || keys['ArrowDown'])  ? 1 : 0;
+        const right= (keys['KeyD'] || keys['ArrowRight']) ? 1 : 0;
+        const left = (keys['KeyA'] || keys['ArrowLeft'])  ? 1 : 0;
+        direction.z = fwd - back;
+        direction.x = right - left;
+        if (direction.lengthSq() > 0) direction.normalize();
+
+        if (direction.z !== 0) velocity.z -= direction.z * SPEED * 12 * delta;
+        if (direction.x !== 0) velocity.x -= direction.x * SPEED * 12 * delta;
+
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+
+        // Keep on the floor at eye height; clamp to room bounds
+        camera.position.y = ROOM.eyeY;
+        camera.position.x = Math.max(ROOM.xMin, Math.min(ROOM.xMax, camera.position.x));
+        camera.position.z = Math.max(ROOM.zMin, Math.min(ROOM.zMax, camera.position.z));
+      }
+
+      renderer.render(scene, camera);
+    }
+    step();
+
+    // ---------- Resize ----------
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

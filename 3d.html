@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>W109 Recording Studio — 3D View</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #0d0d0f;
+      color: #e6e6e6;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 0.85rem 1.25rem;
+      background: linear-gradient(180deg, #15151a 0%, #0d0d0f 100%);
+      border-bottom: 1px solid #2a2a30;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    header .hint { font-size: 0.85rem; color: #888; }
+    header a { color: #4a9eff; text-decoration: none; font-size: 0.85rem; }
+    header a:hover { text-decoration: underline; }
+    main { flex: 1; min-height: 0; }
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      background-color: #0d0d0f;
+    }
+    .progress-bar {
+      display: block;
+      width: 33%;
+      height: 4px;
+      max-height: 4px;
+      background: #2a2a30;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-bar > .update-bar {
+      background: #4a9eff;
+      height: 100%;
+      width: 0%;
+      transition: width 0.1s ease;
+    }
+  </style>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>W109 Recording Studio — 3D View</h1>
+    <span class="hint">Drag to orbit · Scroll/pinch to zoom</span>
+    <a href="index.html">← Lighting scenarios</a>
+  </header>
+  <main>
+    <model-viewer
+      src="W109.glb"
+      alt="W109 recording studio 3D model"
+      camera-controls
+      disable-pan
+      touch-action="pan-y"
+      auto-rotate
+      auto-rotate-delay="4000"
+      rotation-per-second="6deg"
+      shadow-intensity="0.7"
+      shadow-softness="0.6"
+      tone-mapping="aces"
+      exposure="1.0"
+      environment-image="neutral"
+      camera-target="0m 1.5m 0m"
+      camera-orbit="35deg 78deg 2.2m"
+      min-camera-orbit="auto 30deg 0.4m"
+      max-camera-orbit="auto 110deg 2.4m"
+      interaction-prompt="auto"
+      interaction-prompt-threshold="2000">
+      <div slot="progress-bar" class="progress-bar">
+        <div class="update-bar"></div>
+      </div>
+    </model-viewer>
+  </main>
+  <script>
+    const mv = document.querySelector('model-viewer');
+    mv.addEventListener('progress', (e) => {
+      const bar = mv.querySelector('.update-bar');
+      if (bar) bar.style.width = `${e.detail.totalProgress * 100}%`;
+      if (e.detail.totalProgress === 1) {
+        setTimeout(() => {
+          const pb = mv.querySelector('.progress-bar');
+          if (pb) pb.style.opacity = 0;
+        }, 400);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>W109 Recording Studio — Lighting Preview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="W109 studio lighting scenarios">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #0a0a0d;
+      color: #e6e6e6;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 1rem 1.5rem;
+      background: #15151a;
+      border-bottom: 1px solid #2a2a30;
+    }
+    header h1 {
+      margin: 0 0 0.4rem;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    header p {
+      margin: 0;
+      color: #888;
+      font-size: 0.9rem;
+    }
+    .scenario-bar {
+      padding: 0.75rem 1.5rem;
+      background: #101013;
+      border-bottom: 1px solid #2a2a30;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .scenario-bar .group-label {
+      font-size: 0.85rem;
+      color: #888;
+      margin-right: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    button.scenario {
+      background: #2a2a30;
+      color: #ccc;
+      border: 1px solid #3a3a44;
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button.scenario:hover {
+      background: #36363f;
+    }
+    button.scenario.active {
+      background: #1f6feb;
+      border-color: #1f6feb;
+      color: #fff;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      min-height: 0;
+      position: relative;
+    }
+    .stage {
+      max-width: 100%;
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .image-frame {
+      position: relative;
+      max-width: 100%;
+      max-height: 100%;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.7);
+      border: 1px solid #2a2a30;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #000;
+      line-height: 0;
+    }
+    .image-frame img {
+      max-width: 100%;
+      max-height: calc(100vh - 14rem);
+      width: auto;
+      height: auto;
+      display: block;
+    }
+    .caption {
+      font-size: 0.95rem;
+      color: #aaa;
+      text-align: center;
+      max-width: 800px;
+    }
+    .caption strong { color: #e6e6e6; font-weight: 600; }
+    .footer-link {
+      padding: 0.6rem 1.5rem;
+      background: #101013;
+      border-top: 1px solid #2a2a30;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #777;
+    }
+    .footer-link a {
+      color: #4a9eff;
+      text-decoration: none;
+      margin-left: 0.5rem;
+    }
+    .footer-link a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>W109 Recording Studio — Lighting Preview</h1>
+    <p>Compare studio lighting configurations rendered from the W109 Blender scene.</p>
+  </header>
+
+  <nav class="scenario-bar">
+    <span class="group-label">Lighting:</span>
+    <button class="scenario" data-scenario="all_on">All lights on</button>
+    <button class="scenario" data-scenario="leds_only">Overhead LEDs only</button>
+    <button class="scenario" data-scenario="softboxes_only">Softboxes only</button>
+    <button class="scenario" data-scenario="strip_and_softboxes">Strip LED + softboxes</button>
+  </nav>
+
+  <main>
+    <div class="stage">
+      <div class="image-frame">
+        <img id="render-img" src="renders/scenario_all_on.png" alt="W109 all lights on">
+      </div>
+      <div class="caption" id="caption"><strong>All lights on:</strong> ceiling LED panels (4 quads + center strip) and all 5 softboxes active.</div>
+    </div>
+  </main>
+
+  <div class="footer-link">
+    <a href="walkthrough.html">🎮 First-person walkthrough (WASD + mouse)</a>
+    &nbsp;·&nbsp;
+    <a href="3d.html">Orbit 3D view →</a>
+  </div>
+
+  <script>
+    const scenarios = {
+      all_on: {
+        file: 'renders/scenario_all_on.png',
+        caption: '<strong>All lights on:</strong> ceiling LED panels (4 quads + center strip) and all 5 softboxes active.',
+      },
+      leds_only: {
+        file: 'renders/scenario_leds_only.png',
+        caption: '<strong>Overhead LEDs only:</strong> all 5 ceiling LED panels lit; softboxes off. Even, neutral overhead light.',
+      },
+      softboxes_only: {
+        file: 'renders/scenario_softboxes_only.png',
+        caption: '<strong>Softboxes only:</strong> 5 softboxes active, ceiling LEDs off. Directional, soft side light.',
+      },
+      strip_and_softboxes: {
+        file: 'renders/scenario_strip_and_softboxes.png',
+        caption: '<strong>Strip LED + softboxes:</strong> only the center strip LED panel (r2r3_c2E) and softboxes are on.',
+      },
+    };
+
+    const img = document.getElementById('render-img');
+    const caption = document.getElementById('caption');
+    const buttons = document.querySelectorAll('button.scenario');
+
+    function setScenario(key) {
+      const sc = scenarios[key];
+      if (!sc) return;
+      img.src = sc.file;
+      img.alt = sc.caption.replace(/<[^>]+>/g, '');
+      caption.innerHTML = sc.caption;
+      buttons.forEach(b => b.classList.toggle('active', b.dataset.scenario === key));
+    }
+
+    buttons.forEach(b => {
+      b.addEventListener('click', () => setScenario(b.dataset.scenario));
+    });
+
+    // initialize on first scenario
+    setScenario('all_on');
+  </script>
+</body>
+</html>
