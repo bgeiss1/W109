@@ -146,32 +146,6 @@
     #loading .fill { height: 100%; width: 0%; background: #4a9eff; transition: width 0.15s ease; }
     #loading .text { font-size: 0.8rem; color: #888; text-align: center; margin-top: 0.4rem; }
 
-    /* Touch UI: virtual joystick (positioned in JS where the user first touches) */
-    #joystick {
-      position: absolute; inset: 0; pointer-events: none; z-index: 10;
-    }
-    #joy-base, #joy-stick {
-      position: absolute; pointer-events: none;
-      will-change: transform, opacity;
-    }
-    #joy-base {
-      width: 120px; height: 120px;
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.35);
-      background: rgba(20,20,28,0.35);
-      backdrop-filter: blur(4px);
-      opacity: 0;
-      transition: opacity 0.15s;
-    }
-    #joy-stick {
-      width: 56px; height: 56px;
-      border-radius: 50%;
-      background: rgba(74,158,255,0.7);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-      opacity: 0;
-      transition: opacity 0.15s;
-    }
-    html:not(.touch) #joystick { display: none; }
   </style>
   <script type="importmap">
   {
@@ -185,11 +159,6 @@
 <body>
   <div id="canvas-host"></div>
   <div id="crosshair"></div>
-
-  <div id="joystick">
-    <div id="joy-base"></div>
-    <div id="joy-stick"></div>
-  </div>
 
   <div id="topbar">
     <h1>W109 Walkthrough</h1>
@@ -223,8 +192,7 @@
       <span class="kbd">Esc</span><span style="color:#666">release</span>
     </div>
     <div class="keys touch-only">
-      <span class="kbd">Left side</span><span style="color:#666">joystick / move</span>
-      <span class="kbd">Right side</span><span style="color:#666">drag to look</span>
+      <span class="kbd">Drag</span><span style="color:#666">look around</span>
       <span class="kbd">Top buttons</span><span style="color:#666">scenarios</span>
     </div>
     <div class="cta desktop-only">Click anywhere to start</div>
@@ -302,78 +270,33 @@
     });
     document.addEventListener('keyup', e => keys[e.code] = false);
 
-    // ---------- Touch controls (mobile) ----------
-    // move.x = strafe (right positive), move.z = forward (positive)
-    const move = { x: 0, z: 0 };
-    // look state — only used in touch mode; desktop uses PointerLockControls.
+    // ---------- Touch controls (mobile, look-only) ----------
+    // Camera position is fixed at (0, 1.6, 0). Drag anywhere on the canvas
+    // to rotate the camera. No translation.
     const look = { yaw: camera.rotation.y, pitch: camera.rotation.x };
     const PITCH_LIMIT = Math.PI / 2 - 0.001;
 
     if (IS_TOUCH) {
-      const joyBase  = document.getElementById('joy-base');
-      const joyStick = document.getElementById('joy-stick');
-      const JOY_RADIUS = 60; // px — half of joy-base width
-
-      let joyTouchId  = null;
-      let joyOrigin   = null;        // { x, y } screen coords where finger first landed
       let lookTouchId = null;
       let lookLastX = 0, lookLastY = 0;
 
-      function placeJoy(x, y) {
-        joyBase.style.left  = (x - 60) + 'px';   // base is 120px wide
-        joyBase.style.top   = (y - 60) + 'px';
-        joyStick.style.left = (x - 28) + 'px';   // stick is 56px wide
-        joyStick.style.top  = (y - 28) + 'px';
-        joyBase.style.opacity  = '0.85';
-        joyStick.style.opacity = '0.85';
-      }
-      function moveStick(dx, dy) {
-        joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
-      }
-      function hideJoy() {
-        joyBase.style.opacity  = '0';
-        joyStick.style.opacity = '0';
-        joyStick.style.transform = 'translate(0,0)';
-      }
-
       function onTouchStart(e) {
-        // Touches over the topbar bubble naturally — they don't reach #canvas-host
-        // because of z-index. We only see touches that land on the canvas area.
         e.preventDefault();
-        const halfW = window.innerWidth / 2;
-        for (const t of e.changedTouches) {
-          if (t.clientX < halfW && joyTouchId === null) {
-            joyTouchId = t.identifier;
-            joyOrigin = { x: t.clientX, y: t.clientY };
-            placeJoy(t.clientX, t.clientY);
-            moveStick(0, 0);
-          } else if (t.clientX >= halfW && lookTouchId === null) {
-            lookTouchId = t.identifier;
-            lookLastX = t.clientX;
-            lookLastY = t.clientY;
-          }
-        }
+        if (lookTouchId !== null) return;       // already tracking a finger
+        const t = e.changedTouches[0];
+        lookTouchId = t.identifier;
+        lookLastX = t.clientX;
+        lookLastY = t.clientY;
       }
       function onTouchMove(e) {
         e.preventDefault();
         for (const t of e.changedTouches) {
-          if (t.identifier === joyTouchId && joyOrigin) {
-            let dx = t.clientX - joyOrigin.x;
-            let dy = t.clientY - joyOrigin.y;
-            const len = Math.hypot(dx, dy);
-            if (len > JOY_RADIUS) {
-              dx = dx / len * JOY_RADIUS;
-              dy = dy / len * JOY_RADIUS;
-            }
-            moveStick(dx, dy);
-            move.x =  dx / JOY_RADIUS;   // right positive
-            move.z = -dy / JOY_RADIUS;   // up (dy < 0) → forward (positive)
-          } else if (t.identifier === lookTouchId) {
+          if (t.identifier === lookTouchId) {
             const dx = t.clientX - lookLastX;
             const dy = t.clientY - lookLastY;
             lookLastX = t.clientX;
             lookLastY = t.clientY;
-            const sens = 0.0035;         // rad/px — tweak to taste
+            const sens = 0.0035;                 // rad/px
             look.yaw   -= dx * sens;
             look.pitch -= dy * sens;
             if (look.pitch >  PITCH_LIMIT) look.pitch =  PITCH_LIMIT;
@@ -383,14 +306,7 @@
       }
       function onTouchEnd(e) {
         for (const t of e.changedTouches) {
-          if (t.identifier === joyTouchId) {
-            joyTouchId = null;
-            joyOrigin = null;
-            move.x = 0; move.z = 0;
-            hideJoy();
-          } else if (t.identifier === lookTouchId) {
-            lookTouchId = null;
-          }
+          if (t.identifier === lookTouchId) lookTouchId = null;
         }
       }
       const canvasEl = renderer.domElement;
@@ -398,24 +314,6 @@
       canvasEl.addEventListener('touchmove',  onTouchMove,  { passive: false });
       canvasEl.addEventListener('touchend',   onTouchEnd,   { passive: false });
       canvasEl.addEventListener('touchcancel',onTouchEnd,   { passive: false });
-    }
-
-    // ---------- Custom horizontal-only forward/right movement (mobile) ----------
-    // Mirrors PointerLockControls.moveForward / moveRight so we don't depend on it
-    // when we're driving the camera ourselves on touch devices.
-    const _moveVec = new THREE.Vector3();
-    function moveCameraRight(distance) {
-      _moveVec.setFromMatrixColumn(camera.matrix, 0); // local x axis (right)
-      _moveVec.y = 0;
-      _moveVec.normalize();
-      camera.position.addScaledVector(_moveVec, distance);
-    }
-    function moveCameraForward(distance) {
-      _moveVec.setFromMatrixColumn(camera.matrix, 0); // local x axis
-      _moveVec.crossVectors(camera.up, _moveVec);     // up × right = forward (horizontal)
-      _moveVec.y = 0;
-      _moveVec.normalize();
-      camera.position.addScaledVector(_moveVec, distance);
     }
 
     // ---------- Load model ----------
@@ -554,40 +452,32 @@
       const active = controls ? controls.isLocked : document.body.classList.contains('locked');
 
       if (active) {
-        velocity.x -= velocity.x * FRICTION * delta;
-        velocity.z -= velocity.z * FRICTION * delta;
-
         if (IS_TOUCH) {
-          // Apply look first so movement uses the latest camera orientation
+          // Look-only: camera stays parked at the room center.
           camera.rotation.y = look.yaw;
           camera.rotation.x = look.pitch;
-
-          direction.x = move.x;
-          direction.z = move.z;
         } else {
+          velocity.x -= velocity.x * FRICTION * delta;
+          velocity.z -= velocity.z * FRICTION * delta;
+
           const fwd  = (keys['KeyW'] || keys['ArrowUp'])    ? 1 : 0;
           const back = (keys['KeyS'] || keys['ArrowDown'])  ? 1 : 0;
           const right= (keys['KeyD'] || keys['ArrowRight']) ? 1 : 0;
           const left = (keys['KeyA'] || keys['ArrowLeft'])  ? 1 : 0;
           direction.z = fwd - back;
           direction.x = right - left;
-        }
-        if (direction.lengthSq() > 0) direction.normalize();
+          if (direction.lengthSq() > 0) direction.normalize();
 
-        if (direction.z !== 0) velocity.z -= direction.z * SPEED * 12 * delta;
-        if (direction.x !== 0) velocity.x -= direction.x * SPEED * 12 * delta;
+          if (direction.z !== 0) velocity.z -= direction.z * SPEED * 12 * delta;
+          if (direction.x !== 0) velocity.x -= direction.x * SPEED * 12 * delta;
 
-        if (IS_TOUCH) {
-          moveCameraRight   (-velocity.x * delta);
-          moveCameraForward (-velocity.z * delta);
-        } else {
           controls.moveRight  (-velocity.x * delta);
           controls.moveForward(-velocity.z * delta);
-        }
 
-        camera.position.y = ROOM.eyeY;
-        camera.position.x = Math.max(ROOM.xMin, Math.min(ROOM.xMax, camera.position.x));
-        camera.position.z = Math.max(ROOM.zMin, Math.min(ROOM.zMax, camera.position.z));
+          camera.position.y = ROOM.eyeY;
+          camera.position.x = Math.max(ROOM.xMin, Math.min(ROOM.xMax, camera.position.x));
+          camera.position.z = Math.max(ROOM.zMin, Math.min(ROOM.zMax, camera.position.z));
+        }
       }
 
       renderer.render(scene, camera);
